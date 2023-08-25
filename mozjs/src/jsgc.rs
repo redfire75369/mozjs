@@ -2,14 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use jsapi::JS;
-use jsapi::{jsid, JSFunction, JSObject, JSScript, JSString, JSTracer};
-
-use jsid::VoidId;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
+use std::marker::PhantomPinned;
 use std::mem;
+use std::pin::Pin;
 use std::ptr;
+
+use jsapi::JS;
+use jsapi::{jsid, JSFunction, JSObject, JSScript, JSString, JSTracer};
+use jsid::VoidId;
 
 /// A trait for JS types that can be registered as roots.
 pub trait RootKind {
@@ -165,6 +167,7 @@ impl GCMethods for JS::PropertyDescriptor {
 /// be realized through this structure.
 ///
 /// # Safety
+///
 /// For garbage collection to work correctly in SpiderMonkey, modifying the
 /// wrapped value triggers a GC barrier, pointing to the underlying object.
 ///
@@ -173,14 +176,35 @@ impl GCMethods for JS::PropertyDescriptor {
 /// so will invalidate the local reference to wrapped value, still held by
 /// SpiderMonkey.
 ///
-/// For safe `Heap` construction with value see `Heap::boxed` function.
+/// For safe `Heap` construction with value see `Heap::pinned` function.
 #[repr(C)]
 #[derive(Debug)]
 pub struct Heap<T: GCMethods + Copy> {
-    pub ptr: UnsafeCell<T>,
+    ptr: UnsafeCell<T>,
+    _phantom_pinned: PhantomPinned,
 }
 
 impl<T: GCMethods + Copy> Heap<T> {
+    /// Creates a Heap value, without triggering the write barrier.
+    ///
+    /// # Safety
+    ///
+    /// The user is responsible for ensuring the write barrier is triggered accordingly
+    /// and that the Heap value is not moved after writing.
+    pub unsafe fn new(v: T) -> Heap<T> {
+        Heap { ptr: UnsafeCell::new(v), _phantom_pinned: PhantomPinned }
+    }
+
+    /// Creates a `Pin`-wrapped Heap value.
+    pub fn pinned(v: T) -> Pin<Box<Heap<T>>>
+    where
+        Heap<T>: Default,
+    {
+        let mut pinned = Box::pin(Heap::default());
+        pinned.set(v);
+        pinned
+    }
+
     /// This creates a `Box`-wrapped Heap value. Setting a value inside Heap
     /// object triggers a barrier, referring to the Heap object location,
     /// hence why it is not safe to construct a temporary Heap value, assign
@@ -188,6 +212,7 @@ impl<T: GCMethods + Copy> Heap<T> {
     ///
     /// Using boxed Heap value guarantees that the underlying Heap value will
     /// not be moved when constructed.
+    #[deprecated(note = "Use Heap::pinned instead")]
     pub fn boxed(v: T) -> Box<Heap<T>>
     where
         Heap<T>: Default,
@@ -237,13 +262,19 @@ where
     *mut T: GCMethods + Copy,
 {
     fn default() -> Heap<*mut T> {
-        Heap { ptr: UnsafeCell::new(ptr::null_mut()) }
+        Heap { ptr: UnsafeCell::new(ptr::null_mut()), _phantom_pinned: PhantomPinned }
     }
 }
 
 impl Default for Heap<JS::Value> {
     fn default() -> Heap<JS::Value> {
-        Heap { ptr: UnsafeCell::new(JS::Value::default()) }
+        Heap { ptr: UnsafeCell::new(JS::Value::default()), _phantom_pinned: PhantomPinned }
+    }
+}
+
+impl Default for Heap<jsid> {
+    fn default() -> Heap<jsid> {
+        Heap { ptr: UnsafeCell::new(jsid::default()), _phantom_pinned: PhantomPinned }
     }
 }
 
