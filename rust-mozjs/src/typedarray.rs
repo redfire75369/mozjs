@@ -62,12 +62,13 @@ use rust::CustomTrace;
 use rust::{HandleValue, MutableHandleObject, MutableHandleValue};
 
 use std::cell::Cell;
+use std::pin::Pin;
 use std::ptr;
 use std::slice;
 
 /// Trait that specifies how pointers to wrapped objects are stored. It supports
 /// two variants, one with bare pointer (to be rooted on stack using
-/// CustomAutoRooter) and wrapped in a Box<Heap<T>>, which can be stored in a
+/// CustomAutoRooter) and wrapped in a Pin<Box<Heap<T>>>, which can be stored in a
 /// heap-allocated structure, to be rooted with JSTraceable-implementing tracers
 /// (currently implemented in Servo).
 pub trait JSObjectStorage {
@@ -84,14 +85,12 @@ impl JSObjectStorage for *mut JSObject {
     }
 }
 
-impl JSObjectStorage for Box<Heap<*mut JSObject>> {
+impl JSObjectStorage for Pin<Box<Heap<*mut JSObject>>> {
     fn as_raw(&self) -> *mut JSObject {
         self.get()
     }
     fn from_raw(raw: *mut JSObject) -> Self {
-        let boxed = Box::new(Heap::default());
-        boxed.set(raw);
-        boxed
+        Heap::pinned(raw)
     }
 }
 
@@ -178,9 +177,6 @@ impl<T: TypedArrayElement, S: JSObjectStorage> TypedArray<T, S> {
     /// Returned wrapped pointer to the underlying `JSObject` is meant to be
     /// read-only, modifying it can lead to Undefined Behaviour and violation
     /// of TypedArray API guarantees.
-    ///
-    /// Practically, this exists only to implement `JSTraceable` trait in Servo
-    /// for Box<Heap<*mut JSObject>> variant.
     pub unsafe fn underlying_object(&self) -> &S {
         &self.object
     }
@@ -422,7 +418,7 @@ typed_array_element!(
 macro_rules! array_alias {
     ($arr: ident, $heap_arr: ident, $elem: ty) => {
         pub type $arr = TypedArray<$elem, *mut JSObject>;
-        pub type $heap_arr = TypedArray<$elem, Box<Heap<*mut JSObject>>>;
+        pub type $heap_arr = TypedArray<$elem, Pin<Box<Heap<*mut JSObject>>>>;
     };
 }
 

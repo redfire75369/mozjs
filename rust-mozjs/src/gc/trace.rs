@@ -243,7 +243,7 @@ unsafe impl<T: Traceable> Traceable for BTreeSet<T> {
     }
 }
 
-unsafe impl<T: TypedArrayElement> Traceable for TypedArray<T, Box<Heap<*mut JSObject>>> {
+unsafe impl<T: TypedArrayElement> Traceable for TypedArray<T, Pin<Box<Heap<*mut JSObject>>>> {
     unsafe fn trace(&self, trc: *mut JSTracer) {
         self.underlying_object().trace(trc);
     }
