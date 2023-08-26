@@ -68,14 +68,12 @@ pub struct RootedTraceableBox<T: Traceable + 'static> {
     ptr: *mut T,
 }
 
-impl<T: Traceable + Unpin + 'static> RootedTraceableBox<T> {
+impl<T: Traceable + 'static> RootedTraceableBox<T> {
     /// Root a JSTraceable thing for the life of this RootedTraceableBox
     pub fn new(traceable: T) -> RootedTraceableBox<T> {
         Self::from_pinned_box(Box::pin(traceable))
     }
-}
 
-impl<T: Traceable + 'static> RootedTraceableBox<T> {
     /// Consumes a pinned boxed Traceable and roots it for the life of this RootedTraceableBox.
     pub fn from_pinned_box(pinned_traceable: Pin<Box<T>>) -> RootedTraceableBox<T> {
         // Safety: Functions that allow moving are hidden behind Unpin bounds or unsafe.
