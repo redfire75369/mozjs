@@ -73,18 +73,19 @@ impl<T: Traceable + Unpin + 'static> RootedTraceableBox<T> {
     pub fn new(traceable: T) -> RootedTraceableBox<T> {
         Self::from_pinned_box(Box::pin(traceable))
     }
+}
 
+impl<T: Traceable + 'static> RootedTraceableBox<T> {
     /// Consumes a pinned boxed Traceable and roots it for the life of this RootedTraceableBox.
     pub fn from_pinned_box(pinned_traceable: Pin<Box<T>>) -> RootedTraceableBox<T> {
-        let traceable = Box::into_raw(Pin::into_inner(pinned_traceable));
+        // Safety: Functions that allow moving are hidden behind Unpin bounds or unsafe.
+        let traceable = Box::into_raw(unsafe { Pin::into_inner_unchecked(pinned_traceable) });
         unsafe {
             RootedTraceableSet::add(traceable);
         }
         RootedTraceableBox { ptr: traceable }
     }
-}
 
-impl<T: Traceable + 'static> RootedTraceableBox<T> {
     /// Consumes a boxed Traceable and roots it for the life of this RootedTraceableBox.
     #[deprecated(note = "Use RootedTraceableBox::from_pinned_box instead.")]
     pub fn from_box(boxed_traceable: Box<T>) -> RootedTraceableBox<T> {
@@ -125,7 +126,7 @@ where
     }
 }
 
-unsafe impl<T: Traceable + 'static> Traceable for RootedTraceableBox<T> {
+unsafe impl<T: Traceable> Traceable for RootedTraceableBox<T> {
     unsafe fn trace(&self, trc: *mut JSTracer) {
         (*self.ptr).trace(trc)
     }
@@ -138,7 +139,7 @@ impl<T: Traceable> Deref for RootedTraceableBox<T> {
     }
 }
 
-impl<T: Traceable> DerefMut for RootedTraceableBox<T> {
+impl<T: Traceable + Unpin> DerefMut for RootedTraceableBox<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.ptr }
     }

@@ -118,7 +118,10 @@ unsafe impl<T: Traceable + ?Sized> Traceable for Box<T> {
 }
 
 unsafe impl<P, T> Traceable for Pin<P>
-where P: Deref<Target = T>, T: Traceable {
+where
+    P: Deref<Target = T>,
+    T: Traceable,
+{
     #[inline]
     unsafe fn trace(&self, trc: *mut JSTracer) {
         self.as_ref().get_ref().trace(trc);
