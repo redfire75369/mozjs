@@ -3,6 +3,7 @@ use jsapi::{Heap, JSTracer};
 use mozjs_sys::jsgc::GCMethods;
 use rust::Handle;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 
 /// A vector of items to be rooted with `RootedVec`.
 /// Guaranteed to be empty when not rooted.
@@ -67,13 +68,25 @@ pub struct RootedTraceableBox<T: Traceable + 'static> {
     ptr: *mut T,
 }
 
-impl<T: Traceable + 'static> RootedTraceableBox<T> {
+impl<T: Traceable + Unpin + 'static> RootedTraceableBox<T> {
     /// Root a JSTraceable thing for the life of this RootedTraceableBox
     pub fn new(traceable: T) -> RootedTraceableBox<T> {
-        Self::from_box(Box::new(traceable))
+        Self::from_pinned_box(Box::pin(traceable))
     }
 
-    /// Consumes a boxed JSTraceable and roots it for the life of this RootedTraceableBox.
+    /// Consumes a pinned boxed Traceable and roots it for the life of this RootedTraceableBox.
+    pub fn from_pinned_box(pinned_traceable: Pin<Box<T>>) -> RootedTraceableBox<T> {
+        let traceable = Box::into_raw(Pin::into_inner(pinned_traceable));
+        unsafe {
+            RootedTraceableSet::add(traceable);
+        }
+        RootedTraceableBox { ptr: traceable }
+    }
+}
+
+impl<T: Traceable + 'static> RootedTraceableBox<T> {
+    /// Consumes a boxed Traceable and roots it for the life of this RootedTraceableBox.
+    #[deprecated(note = "Use RootedTraceableBox::from_pinned_box instead.")]
     pub fn from_box(boxed_traceable: Box<T>) -> RootedTraceableBox<T> {
         let traceable = Box::into_raw(boxed_traceable);
         unsafe {
@@ -82,7 +95,11 @@ impl<T: Traceable + 'static> RootedTraceableBox<T> {
         RootedTraceableBox { ptr: traceable }
     }
 
-    /// Returns underlying pointer
+    /// Returns underlying pointer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the contents of the pointer aren't moved.
     pub unsafe fn ptr(&self) -> *mut T {
         self.ptr
     }
@@ -93,6 +110,16 @@ where
     Heap<T>: Traceable + 'static,
     T: GCMethods + Copy,
 {
+    /// Consumes a pinned boxed [Heap] and roots it for the life of this RootedTraceableBox.
+    pub fn from_pinned_heap(pinned_heap: Pin<Box<Heap<T>>>) -> RootedTraceableBox<Heap<T>> {
+        // Safety: Heap is not moved after being unpinned.
+        let traceable = Box::into_raw(unsafe { Pin::into_inner_unchecked(pinned_heap) });
+        unsafe {
+            RootedTraceableSet::add(traceable);
+        }
+        RootedTraceableBox { ptr: traceable }
+    }
+
     pub fn handle(&self) -> Handle<T> {
         unsafe { Handle::from_raw((*self.ptr).handle()) }
     }

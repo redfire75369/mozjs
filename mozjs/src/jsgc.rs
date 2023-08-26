@@ -201,8 +201,8 @@ impl<T: GCMethods + Copy> Heap<T> {
     where
         Heap<T>: Default,
     {
-        let mut pinned = Box::pin(Heap::default());
-        pinned.deref().set(v);
+        let pinned = Box::pin(Heap::default());
+        (*pinned).set(v);
         pinned
     }
 

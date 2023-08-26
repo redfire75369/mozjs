@@ -18,8 +18,9 @@ use std::num::{
     NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
     NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
 };
-use std::ops::Range;
+use std::ops::{Deref, Range};
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::atomic::{
     AtomicBool, AtomicI16, AtomicI32, AtomicI64, AtomicI8, AtomicIsize, AtomicU16, AtomicU32,
@@ -110,6 +111,14 @@ unsafe impl<T: Traceable> Traceable for Arc<T> {
 }
 
 unsafe impl<T: Traceable + ?Sized> Traceable for Box<T> {
+    #[inline]
+    unsafe fn trace(&self, trc: *mut JSTracer) {
+        (**self).trace(trc);
+    }
+}
+
+unsafe impl<P, T> Traceable for Pin<P>
+where P: Deref<Target = T>, T: Traceable + Unpin {
     #[inline]
     unsafe fn trace(&self, trc: *mut JSTracer) {
         (**self).trace(trc);
