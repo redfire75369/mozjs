@@ -202,7 +202,7 @@ impl<T: GCMethods + Copy> Heap<T> {
         Heap<T>: Default,
     {
         let pinned = Box::pin(Heap::default());
-        (*pinned).set(v);
+        pinned.as_ref().set(v);
         pinned
     }
 
@@ -213,17 +213,34 @@ impl<T: GCMethods + Copy> Heap<T> {
     ///
     /// Using boxed Heap value guarantees that the underlying Heap value will
     /// not be moved when constructed.
+    ///
+    /// # Safety
+    ///
+    /// The caller is to ensure the interior Heap value is not moved or set without a write barrier.
     #[deprecated(note = "Use Heap::pinned instead")]
     pub fn boxed(v: T) -> Box<Heap<T>>
     where
         Heap<T>: Default,
     {
         let boxed = Box::new(Heap::default());
-        boxed.set(v);
+        unsafe { boxed.set_unsafe(v) };
         boxed
     }
 
-    pub fn set(&self, v: T) {
+    pub fn set(self: Pin<&Self>, v: T) {
+        unsafe {
+            let ptr = self.ptr.get();
+            let prev = *ptr;
+            *ptr = v;
+            T::post_barrier(ptr, prev, v);
+        }
+    }
+
+    /// Sets the value in the Heap.
+    ///
+    /// # Safety
+    /// The caller is responsible for the Heap not being moved.
+    pub unsafe fn set_unsafe(&self, v: T) {
         unsafe {
             let ptr = self.ptr.get();
             let prev = *ptr;

@@ -102,6 +102,15 @@ impl<T: Traceable + 'static> RootedTraceableBox<T> {
     pub unsafe fn ptr(&self) -> *mut T {
         self.ptr
     }
+
+    /// Returns underlying pointer as a mutable reference.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the contents of the pointer aren't moved.
+    pub unsafe fn get_mut(&mut self) -> &mut T {
+        &mut *self.ptr
+    }
 }
 
 impl<T> RootedTraceableBox<Heap<T>>
@@ -109,16 +118,6 @@ where
     Heap<T>: Traceable + 'static,
     T: GCMethods + Copy,
 {
-    /// Consumes a pinned boxed [Heap] and roots it for the life of this RootedTraceableBox.
-    pub fn from_pinned_heap(pinned_heap: Pin<Box<Heap<T>>>) -> RootedTraceableBox<Heap<T>> {
-        // Safety: Heap is not moved after being unpinned.
-        let traceable = Box::into_raw(unsafe { Pin::into_inner_unchecked(pinned_heap) });
-        unsafe {
-            RootedTraceableSet::add(traceable);
-        }
-        RootedTraceableBox { ptr: traceable }
-    }
-
     pub fn handle(&self) -> Handle<T> {
         unsafe { Handle::from_raw((*self.ptr).handle()) }
     }
