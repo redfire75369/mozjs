@@ -6,6 +6,7 @@ use std::cell::UnsafeCell;
 use std::ffi::c_void;
 use std::marker::PhantomPinned;
 use std::mem;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr;
 
@@ -195,13 +196,13 @@ impl<T: GCMethods + Copy> Heap<T> {
         Heap { ptr: UnsafeCell::new(v), _phantom_pinned: PhantomPinned }
     }
 
-    /// Creates a `Pin`-wrapped Heap value.
+    /// Creates a pinned `Box`-wrapped Heap value.
     pub fn pinned(v: T) -> Pin<Box<Heap<T>>>
     where
         Heap<T>: Default,
     {
         let mut pinned = Box::pin(Heap::default());
-        pinned.set(v);
+        pinned.deref().set(v);
         pinned
     }
 
