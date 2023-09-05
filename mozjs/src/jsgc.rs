@@ -186,16 +186,6 @@ pub struct Heap<T: GCMethods + Copy> {
 }
 
 impl<T: GCMethods + Copy> Heap<T> {
-    /// Creates a Heap value, without triggering the write barrier.
-    ///
-    /// # Safety
-    ///
-    /// The user is responsible for ensuring the write barrier is triggered accordingly
-    /// and that the Heap value is not moved after writing.
-    pub unsafe fn new(v: T) -> Heap<T> {
-        Heap { ptr: UnsafeCell::new(v), _phantom_pinned: PhantomPinned }
-    }
-
     /// Creates a pinned `Box`-wrapped Heap value.
     pub fn pinned(v: T) -> Pin<Box<Heap<T>>>
     where
@@ -228,19 +218,6 @@ impl<T: GCMethods + Copy> Heap<T> {
     }
 
     pub fn set(self: Pin<&Self>, v: T) {
-        unsafe {
-            let ptr = self.ptr.get();
-            let prev = *ptr;
-            *ptr = v;
-            T::post_barrier(ptr, prev, v);
-        }
-    }
-
-    /// Sets the value in the Heap.
-    ///
-    /// # Safety
-    /// The caller is responsible for the Heap not being moved.
-    pub unsafe fn set_unsafe(&self, v: T) {
         unsafe {
             let ptr = self.ptr.get();
             let prev = *ptr;
