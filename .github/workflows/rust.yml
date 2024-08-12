@@ -96,7 +96,7 @@ jobs:
         features: ["debugmozjs", "streams"]
         target: ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
     env:
-      LINKER: "lld-link.exe"
+      LINKER: "rustc"
       CC: "clang-cl"
       CXX: "clang-cl"
       MOZTOOLS_PATH: "${{ github.workspace }}\\target\\dependencies\\moztools-4.0"
