@@ -276,20 +276,21 @@ def expand_libs_list_style(c_compiler, link, linker_flags, extra_flags):
         else:
             base_linker_cmd = [c_compiler.compiler] + cflags + ldflags + ["-o", outname]
 
+        return "list"
         # -filelist is for the OS X linker.  We need to try -filelist
         # first because clang understands @file, but may pass an
         # oversized argument list to the linker depending on the
         # contents of @file.
-        options = [
-            ("linkerlist", f"-Wl,@{listname}"),
-            ("filelist", f"-Wl,@{listname}"),
-            ("list", f"@{listname}"),
-        ]
-        for kind, option in options:
-            linker_cmd = base_linker_cmd + [option]
-            if check_cmd_output(*linker_cmd, onerror=lambda: None) is not None:
-                return kind
-        die("Couldn't find one that works")
+        # options = [
+        #     ("linkerlist", f"-Wl,@{listname}"),
+        #     ("filelist", f"-Wl,@{listname}"),
+        #     ("list", f"@{listname}"),
+        # ]
+        # for kind, option in options:
+        #     linker_cmd = base_linker_cmd + [option]
+        #     if check_cmd_output(*linker_cmd, onerror=lambda: None) is not None:
+        #         return kind
+        # die("Couldn't find one that works")
 
     finally:
         os.remove(objname)
